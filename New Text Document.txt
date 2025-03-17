@@ -1,0 +1,128 @@
+import os
+import zipfile
+import glob
+from tqdm.notebook import tqdm
+import datetime
+import shutil
+
+def download_from_kaggle_path(source_path, zip_filename=None):
+    """
+    Create a ZIP file from specified Kaggle path for easy download
+    
+    Args:
+        source_path: Path to file or directory you want to download (e.g., '/kaggle/input/dataset-name')
+        zip_filename: Custom name for ZIP file (default: kaggle_download_YYYY-MM-DD_HH-MM.zip)
+    
+    Returns:
+        Path to the created ZIP file
+    """
+    # Validate source path exists
+    if not os.path.exists(source_path):
+        print(f"❌ Error: Path '{source_path}' does not exist!")
+        return None
+    
+    # Get the base name of the source path for default naming
+    path_base_name = os.path.basename(os.path.normpath(source_path))
+    
+    # Get current timestamp for filename if not specified
+    if zip_filename is None:
+        timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
+        zip_filename = f"kaggle_{path_base_name}_{timestamp}.zip"
+    
+    # Ensure the zip has .zip extension
+    if not zip_filename.endswith('.zip'):
+        zip_filename += '.zip'
+    
+    # Define the Kaggle working directory for output
+    kaggle_working_dir = '/kaggle/working'
+    final_zip_path = os.path.join(kaggle_working_dir, zip_filename)
+    
+    # Define temporary directory for creating the ZIP
+    # (we need this to avoid including the ZIP file in itself during creation)
+    temp_dir = '/tmp/zip_temp'
+    os.makedirs(temp_dir, exist_ok=True)
+    temp_zip_path = os.path.join(temp_dir, zip_filename)
+    
+    try:
+        print(f"Preparing to download: {source_path}")
+        
+        # Check if source is file or directory
+        if os.path.isfile(source_path):
+            # Single file case
+            print(f"Source is a single file: {os.path.basename(source_path)}")
+            all_files = [source_path]
+            base_dir = os.path.dirname(source_path)
+        else:
+            # Directory case
+            print(f"Source is a directory, scanning for files...")
+            all_files = []
+            base_dir = source_path
+            for root, dirs, files in os.walk(source_path):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    all_files.append(file_path)
+                    
+        if not all_files:
+            print(f"⚠️ No files found in '{source_path}'!")
+            return None
+            
+        print(f"Creating ZIP file with {len(all_files)} files...")
+        
+        # Create ZIP file with compression
+        with zipfile.ZipFile(temp_zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            # Add files to the ZIP with progress bar
+            for file in tqdm(all_files, desc="Adding files"):
+                # Get the relative path to preserve directory structure
+                rel_path = os.path.relpath(file, base_dir)
+                zipf.write(file, rel_path)
+        
+        # Move the ZIP file to the working directory
+        shutil.move(temp_zip_path, final_zip_path)
+        
+        # Calculate ZIP size
+        zip_size_mb = os.path.getsize(final_zip_path) / (1024 * 1024)  # Convert bytes to MB
+        
+        print(f"\n✅ ZIP file created successfully: {final_zip_path}")
+        print(f"   Size: {zip_size_mb:.2f} MB")
+        print(f"   Contains {len(all_files)} files")
+        print(f"\n🔽 Download this file from the Kaggle notebook output files section")
+        
+        return final_zip_path
+    
+    except Exception as e:
+        print(f"❌ Error creating ZIP file: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+    finally:
+        # Clean up temp directory
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+# Example usage - customize the path you want to download
+# Uncomment and modify one of these examples to download specific paths:
+
+# 1. Download a specific file
+# download_from_kaggle_path('/kaggle/working/outputs/analysis_results.csv')
+
+# 2. Download a specific directory
+# download_from_kaggle_path('/kaggle/working/outputs')
+
+# 3. Download from an input dataset
+# download_from_kaggle_path('/kaggle/input/some-dataset-name')
+
+# 4. Download the entire working directory
+# download_from_kaggle_path('/kaggle/working')
+
+# Make it easy to use by providing a function to execute from notebook
+def download_path(path, custom_name=None):
+    """Helper function to trigger download from notebook"""
+    return download_from_kaggle_path(path, custom_name)
+
+# Example of how to use in your notebook:
+print("Example usage:")
+print("download_path('/kaggle/working/outputs')")
+print("download_path('/kaggle/input/my-dataset/images')")
+print("download_path('/kaggle/working/model.h5', 'my_trained_model.zip')")
+
+print(f"\nGenerated for: rezakhaleghi998 on 2025-03-13 18:47:41")
